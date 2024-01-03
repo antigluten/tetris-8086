@@ -2,3 +2,6 @@ utils/
 masm611/
 *.EXE
 *.OBJ
+*.CV4
+*.STS
+*.LST

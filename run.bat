@@ -2,14 +2,12 @@
 
 cls
 
-ml /c program.asm
+ml /Zi /Fl /c program.asm
 if errorlevel 1 goto error
 
-link program.obj;
+link /codeview program.obj;
 
 if errorlevel 1 goto error
-
-cls
 
 program
 
