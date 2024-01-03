@@ -1,21 +1,23 @@
 .model small
 .stack 100h
-;.386
+.8086
 
 .data
-message BYTE "Hello World",0dh,0ah,0
+message    db  "Hello, world!", 13, 10, '$'
 
 .code
-main PROC
+main proc
 	mov ax,@data
 	mov ds,ax
 
-	mov ah,40h            ; write to device
-	mov bx,1              ; output handle
-	mov cx,SIZEOF message ; size in bytes of message
-	mov dx,OFFSET message ; address of buffer
-	int 21h
+    mov ah, 09h
+    ;lea dx, message
+    mov dx, offset message ; OR - lea dx, message
+    int 21h
+    ; exit
+    mov ah, 4ch
+    int 21h
 
 	.exit
-main ENDP
-END main
+main endp
+end main

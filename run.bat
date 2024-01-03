@@ -5,9 +5,13 @@ cls
 ml /c program.asm
 if errorlevel 1 goto error
 
-link program.obj
+link program.obj;
 
 if errorlevel 1 goto error
+
+cls
+
+program
 
 :error
 
