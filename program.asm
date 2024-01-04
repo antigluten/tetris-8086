@@ -168,11 +168,11 @@ draw_figure proc
             or al, al
             jz @@skip
 
-            mov al, 0Fh          ; white/black
-            mov ah, 5bh
+            mov ah, 0Fh          ; white/black
+            mov al, 5bh
             stosw
 
-            mov ah, 5dh
+            mov al, 5dh
             stosw
 
             loop @@col
