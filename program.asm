@@ -4,8 +4,15 @@
 
 .data
 
-FIELD_HEIGHT       equ        22
-FIELD_WIDTH        equ        20
+PLAYFIELD_WIDTH    equ        10
+PLAYFIELD_HEIGHT   equ        20
+
+BOTTOM_BORDER_HEIGHT equ      2
+HOR_BORDER_WIDTH     equ      2
+
+FIELD_HEIGHT       equ        PLAYFIELD_HEIGHT + BOTTOM_BORDER_HEIGHT
+FIELD_WIDTH        equ        (PLAYFIELD_WIDTH + HOR_BORDER_WIDTH) * 2
+
 field              byte       FIELD_HEIGHT * FIELD_WIDTH       DUP(0)
 
 FIGURE_HEIGHT      equ        4
@@ -42,8 +49,8 @@ clear endp
 draw proc
     ; [SI: DI]
     ; [field, 0]
-    mov si, offset field                ; array
-    mov di, 0                           ; index
+    mov si, offset field                ; SI -> offset field
+    mov di, 0                           ; DI -> 0
     mov bx, FIELD_HEIGHT
 
     mov ax, 0b800h                      ; videoram
@@ -52,6 +59,7 @@ draw proc
         mov cx, FIELD_WIDTH
 
         @col:
+            ; TODO: - Move to another proc
             cmp cx, 1
             je @right_border
 
@@ -93,7 +101,20 @@ draw proc
         ret
 
     @space:
+        cmp bx, 1
+        je @@space
+
+        mov al, cl
+        and al, 1
+        cmp al, 1
+        je @dot 
+
+        @@space:
         mov al, 020h         ; empty space
+        ret
+
+    @dot:
+        mov al, 2eh
         ret
 
     @left_border:
@@ -139,49 +160,62 @@ draw proc
 draw endp
 
 draw_figure proc
-    mov bx, word ptr [cur_x] ; BL = cur_x, BH = cur_y
+    ; BL = cur_x, BH = cur_y
+    mov bx, word ptr [cur_x]
     ; cur_y * 160
     mov al, bh
     mov ah, 160
     mul ah
     ; += cur_x * 2 + 1
-    mov bh, 0
-    shl bx, 1
-    inc bx
-    shl bx, 1
+    mov bh, 0                       ; bx contains only x
+    shl bx, 1                       ; * 2
+    add bx, HOR_BORDER_WIDTH        ; left border
+    shl bx, 1                       ; * 2
     add ax, bx
 
-    mov di, ax
+    ;mov ax, 2
+    ;shl ax, 1
 
-    ; TODO: - temporary add 3
-    add di, 3
+    mov di, ax                      ; pos on screen into DI
 
-    mov ax, 0b800h
-    mov es, ax
+    mov ax, 0b800h  
+    mov es, ax                      ; VIDEO_RAM -> ES
 
-    mov si, word ptr [cur_figure]
+    mov si, word ptr [cur_figure]   ; is this a pointer to the cur_figure, or that is
     mov bx, 4
     @@row: 
         mov cx, 4
         @@col: 
-            lodsb
-            or al, al
+            mov al, byte ptr ds:[si]
+            inc si
+            ;lodsb                  ; DS:[SI] -> AL, update SI
+            or al, al               ; skip zeros
             jz @@skip
 
-            mov ah, 0Fh          ; white/black
-            mov al, 5bh
-            stosw
+            mov ah, 0Fh             ; white/black
+            mov al, 5bh             ; [
+            ;mov es:[di], ax
+            ;add di, 2
+            stosw                   ; AX -> ES:[DI] ; DI += 2
 
-            mov al, 5dh
-            stosw
+            mov al, 5dh             ; ]
+            stosw                   ; AX -> ES:[DI] ; DI += 2
 
             loop @@col
             jmp @@end
     @@skip:
-        add di, 4
+        ;mov al, 2eh
+        ;mov ah, 0Fh
+        ;stosw                ; AX -> ES:[DI] ; DI += 2
+        
+        ;mov al, 2eh
+        ;mov ah, 0Fh
+        ;stosw                ; AX -> ES:[DI] ; DI += 2
+
+        add di, 4                ; [] consists of 2 elements, each 2 el width
         loop @@col
     @@end:
-        add di, CONSOLE_WIDTH - 2 * 8
+        add di, CONSOLE_WIDTH - 2 * 4 * 2
         dec bx
         jnz @@row
 
@@ -192,8 +226,6 @@ fallLoop proc
 @fallLoop:
     call draw
     call draw_figure
-
-    ret
 
     ; delay for 1 sec
     mov ah, 86h
@@ -207,7 +239,8 @@ fallLoop proc
     mov byte ptr [cur_y], al
 
     ; check for colision
-    cmp al, FIELD_HEIGHT - 3
+    ; TODO: doesn't work figures with height less than 4
+    cmp al, PLAYFIELD_HEIGHT - FIGURE_HEIGHT
     jbe @fallLoop
 
     ;call checkCollision
@@ -223,7 +256,6 @@ checkCollision proc
     mov al, bh
     mov ah, field_width
     mul ah
-
     ; += cur_x
     mov ch, 0
     mov cl, bl
@@ -231,7 +263,7 @@ checkCollision proc
     add ax, offset field
     mov di, ax
     ;
-    mov si, word ptr [cur_figure]
+    ;mov si, word ptr [cur_figure]
     ;
     mov dx, FIGURE_HEIGHT
     @@rowC:
