@@ -4,6 +4,24 @@
 
 .data
 
+CHAR_SPACE         equ        020h
+CHAR_MARK          equ        07ch
+CHAR_GT            equ        03eh
+CHAR_LS            equ        03ch
+CHAR_BORDER        equ        03dh
+CHAR_REV_SLASH     equ        05ch
+CHAR_SLASH         equ        02fh    
+
+CHAR_DOT           equ        02eh
+
+KEY_ESC            equ        011bh
+KEY_L_ARROW        equ        4b00h
+KEY_R_ARROW        equ        4d00h
+
+VRAM               equ        0b800h
+
+PIXEL_SCALE        equ        2
+
 PLAYFIELD_WIDTH    equ        10
 PLAYFIELD_HEIGHT   equ        20
 
@@ -20,24 +38,27 @@ FIGURE_WIDTH       equ        4
 
 CONSOLE_WIDTH      equ        160
 
-cur_figure         dw         offset    z_figure
-cur_x              db         0
-cur_y              db         0
+cur_figure         dw         offset    square
+cur_x              db         6
+cur_y              db         15
 
-z_figure   db 0,3,0,0
-           db 3,3,0,0
-           db 3,0,0,0
-           db 0,0,0,0
+z_figure           db         0,3,0,0
+                   db         3,3,0,0
+                   db         3,0,0,0
+                   db         0,0,0,0
 
-l_figure   db 3,0,0,0
-           db 3,0,0,0
-           db 3,0,0,0
-           db 3,0,0,0
+l_figure           db         3,0,0,0
+                   db         3,0,0,0
+                   db         3,0,0,0
+                   db         3,0,0,0
 
-square     db 4,4,0,0
-           db 4,4,0,0
-           db 0,0,0,0
-           db 0,0,0,0
+square             db         4,4,0,0
+                   db         4,4,0,0
+                   db         0,0,0,0
+                   db         0,0,0,0
+
+X                  db         0
+Y                  db         0
 
 .code
 
@@ -46,37 +67,22 @@ clear proc
     int 10h 
 clear endp
 
-draw proc
+draw_field proc
     ; [SI: DI]
-    ; [field, 0]
+    ; [field: 0]
     mov si, offset field                ; SI -> offset field
     mov di, 0                           ; DI -> 0
     mov bx, FIELD_HEIGHT
 
-    mov ax, 0b800h                      ; videoram
+    mov ax, VRAM                      ; videoram
     mov es, ax
     @row:
         mov cx, FIELD_WIDTH
 
         @col:
             ; TODO: - Move to another proc
-            cmp cx, 1
-            je @right_border
 
-            cmp cx, 2
-            je @mark_sign
-            
-            cmp cx, FIELD_WIDTH - 1
-            je @mark_sign
-
-            cmp cx, FIELD_WIDTH
-            je @left_border
-            
-            cmp bx, 2
-            je @border
-
-            cmp bx, 1
-            je @border_frame
+            jmp @draw_frame
 
             @skip:
 
@@ -110,75 +116,98 @@ draw proc
         je @dot 
 
         @@space:
-        mov al, 020h         ; empty space
-        ret
+            mov al, CHAR_SPACE         ; empty space
+            ret
 
     @dot:
-        mov al, 2eh
+        mov al, CHAR_DOT
         ret
-
-    @left_border:
-        cmp bx, 1
-        je @skip
-        mov al, 3ch
-        jmp @print
 
     @mark_sign:
         cmp bx, 1
         je @skip
 
-        mov al, 7ch ;21h
+        mov al, CHAR_MARK
+        jmp @print
+
+    @left_border:
+        cmp bx, 1
+        je @skip
+        mov al, CHAR_LS
         jmp @print
 
     @right_border:
         cmp bx, 1
         je @skip
 
-        mov al, 3eh
+        mov al, CHAR_GT
         jmp @print
 
     @border:
-        mov al, 3dh
+        mov al, CHAR_BORDER
         jmp @print
 
     @border_frame:
         mov dx, cx
-
-        and dx, 1
+        and dx, 1                         ; mod 2
 
         cmp dx, 0
-        jne @mod
+        jne @slash
 
-        mov al, 5ch
+        mov al, CHAR_REV_SLASH
+        jmp @bf_print
 
-        jmp @print
+        @slash:
+            mov al, CHAR_SLASH
 
-        @mod:
-        mov al, 2fh
-        jmp @print
+        @bf_print:
+            jmp @print
 
-draw endp
+    ; draw border frame
+
+    @draw_frame:
+        cmp cx, 1
+        je @right_border
+
+        cmp cx, 2
+        je @mark_sign
+        
+        cmp cx, FIELD_WIDTH - 1
+        je @mark_sign
+
+        cmp cx, FIELD_WIDTH
+        je @left_border
+        
+        cmp bx, 2
+        je @border
+
+        cmp bx, 1
+        je @border_frame
+
+        jmp @skip
+
+
+draw_field endp
 
 draw_figure proc
     ; BL = cur_x, BH = cur_y
     mov bx, word ptr [cur_x]
     ; cur_y * 160
-    mov al, bh
-    mov ah, 160
+    mov al, bh                      ; Y -> BH
+    mov ah, CONSOLE_WIDTH           
     mul ah
-    ; += cur_x * 2 + 1
-    mov bh, 0                       ; bx contains only x
-    shl bx, 1                       ; * 2
-    add bx, HOR_BORDER_WIDTH        ; left border
-    shl bx, 1                       ; * 2
-    add ax, bx
+    ; += cur_x * PIXEL_SCALE + 1
+    mov bh, 0                       ; erase Y in BH
+    shl bx, 1                       ; consists of two pieces []
 
-    ;mov ax, 2
-    ;shl ax, 1
+    add bx, HOR_BORDER_WIDTH        ; add border offset
+
+    shl bx, 1                       ; * 2 ; PIXEL_WIDTH of an element
+    add ax, bx                      ; calc all the pos
 
     mov di, ax                      ; pos on screen into DI
 
-    mov ax, 0b800h  
+    mov ax, VRAM  
     mov es, ax                      ; VIDEO_RAM -> ES
 
     mov si, word ptr [cur_figure]   ; is this a pointer to the cur_figure, or that is
@@ -224,75 +253,192 @@ draw_figure endp
 
 fallLoop proc
 @fallLoop:
-    call draw
+    call draw_field
     call draw_figure
 
     ; delay for 1 sec
-    mov ah, 86h
-    mov dx, 04240h
-    mov cx, 0000fh
-    int 15h
+    ;mov ah, 86h
+
+    ;mov dx, d090h
+    ;mov cx, 0003h ; fast
+    ;mov dx, 04240h
+    ;mov cx, 0000fh
+    ;int 15h
 
     ; inc y_cord
-    mov al, byte ptr [cur_y]
+
+    @keyLoop:
+
+    ;mov ah, 00
+    ;int 16h
+
+    ;cmp ax, KEY_ESC
+    ;je @exit
+
+    ;cmp ax, KEY_L_ARROW
+    ;je @left_arrow
+
+    ;cmp ax, KEY_R_ARROW
+    ;je @right_arrow
+
+    @return:
+
+    ;jmp @fallLoop
+
+    mov al, byte ptr [cur_x]
     inc al
-    mov byte ptr [cur_y], al
+    mov byte ptr [cur_x], al
 
     ; check for colision
     ; TODO: doesn't work figures with height less than 4
-    cmp al, PLAYFIELD_HEIGHT - FIGURE_HEIGHT
-    jbe @fallLoop
+    ;cmp al, PLAYFIELD_HEIGHT - FIGURE_HEIGHT
+    ;jbe @fallLoop
 
-    ;call checkCollision
-    ;jnc @fallLoop
+    mov si, offset cur_figure
+    call checkCollision
+    jnc @fallLoop
 
     ret
+
+@left_arrow:
+    mov al, byte ptr [cur_x]
+    or al, al
+    jz @keyLoop
+    dec al
+    mov byte ptr [cur_x], al
+    jmp @return
+
+@right_arrow:
+    mov al, byte ptr [cur_x]
+    inc al
+    mov byte ptr [cur_x], al
+    jnc @return
+    dec byte ptr [cur_x]
+    jmp @keyLoop
+
+@exit:
+    mov ah, 4ch
+    int 21h
 fallLoop endp
+
+printM macro x, y, char
+    push di
+    push ax
+    push bx
+    push cx
+    push dx
+
+    ; calculate di
+    ; BL = cur_x, BH = cur_y
+    mov bl, x
+    mov bh, y
+    ; cur_y * 160
+    mov al, bh                      ; Y -> BH
+    mov ah, CONSOLE_WIDTH           
+    mul ah
+    ; += cur_x * PIXEL_SCALE + 1
+    mov bh, 0                       ; erase Y in BH
+    shl bx, 1                       ; consists of two pieces []
+
+    add bx, HOR_BORDER_WIDTH        ; add border offset
+
+    shl bx, 1                       ; * 2 ; PIXEL_WIDTH of an element
+    add ax, bx                      ; calc all the pos
+
+    mov di, ax                      ; pos on screen into DI
+
+    mov ah, 0fh
+    mov al, char
+    stosw                        ; AX -> ES:[DI] ; DI += 2
+    ;sub di, 2                    ; DI -= 2
+
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop di
+endm
+
 
 checkCollision proc
     ; BL = cur_x, BH = cur_y
     mov bx, word ptr [cur_x]
-    ; cur_y * field_width
-    mov al, bh
-    mov ah, field_width
+    ; cur_y * PLAYFIELD_WIDTH
+    mov al, bh                  ; Y -> BH
+    mov ah, FIELD_WIDTH         ; FIELD_WIDTH
     mul ah
     ; += cur_x
     mov ch, 0
-    mov cl, bl
-    add ax, cx
-    add ax, offset field
+    mov cl, bl                  ; X -> CL
+    add ax, cx                  ; X -> AX
+    ; left border width
+    add ax, HOR_BORDER_WIDTH
+
+    add ax, offset field        ; offset + ax   ; address of pixel
+
     mov di, ax
-    ;
-    ;mov si, word ptr [cur_figure]
-    ;
+
+    ; 4x4
     mov dx, FIGURE_HEIGHT
     @@rowC:
         mov cx, FIGURE_WIDTH
         @@colC:
-        lodsb
-        or al, al
+
+        ;mov ah, 0h
+        ;int 16h
+
+        mov byte ptr [X], bl
+        mov byte ptr [Y], bh
+
+        lodsb                       ; DS:[SI] -> AL, SI += 1
+        or al, al                   ; check if not zero
+
         jz  @@skipC
-        cmp bl, FIGURE_WIDTH
-        jae @@collides
-        cmp bh, FIGURE_HEIGHT
+        cmp bl, PLAYFIELD_WIDTH     ; x > field_width
+        jae @@colW
+        cmp bh, PLAYFIELD_HEIGHT    ; y > playfield_height
         jae @@collides
 
-        mov al, byte ptr [di]
+        mov al, byte ptr [di]       ; read from memory?
         or al, al
-        jnz @@collides
+        jnz @@colM
     @@skipC:
-        inc bl
-        inc di
+        printM X, Y, 5ah
+        inc bl                      ; x++
+        inc di                      ; memory_offset++
         loop @@colC
+
         add di, FIELD_WIDTH-FIGURE_WIDTH
-        sub bl, FIGURE_WIDTH
-        inc bh
+        sub bl, FIGURE_WIDTH        ; x -= width of figure
+        inc bh                      ; y++
         dec dx
         jnz @@rowC
         clc
         ret
     @@collides:
+        printM X, Y, 043h
         stc
+        ret
+
+    @@colW:
+        printM X, Y, 057h
+        stc
+        ret 
+
+    @@colM:
+        printM X, Y, 04dh
+        stc
+        ret
+
+    @sign:
+        push di
+
+        mov ah, 0fh
+        mov al, 23h
+        stosw                        ; AX -> ES:[DI] ; DI += 2
+        sub di, 2                    ; DI -= 2
+
+        pop di
         ret
 checkCollision endp
 
@@ -300,7 +446,7 @@ main proc
 	mov ax,@data
 	mov ds,ax
 
-    call clear
+    ;call clear
     call fallLoop
 
     ; wait for a keypress
