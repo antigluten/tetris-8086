@@ -256,38 +256,31 @@ fallLoop proc
     call draw_field
     call draw_figure
 
-    ; delay for 1 sec
-    ;mov ah, 86h
-
-    ;mov dx, d090h
-    ;mov cx, 0003h ; fast
-    ;mov dx, 04240h
-    ;mov cx, 0000fh
-    ;int 15h
-
-    ; inc y_cord
+    ret
 
     @keyLoop:
 
-    ;mov ah, 00
-    ;int 16h
+    mov ah, 01
+    int 16h
+    jz @noKey
 
-    ;cmp ax, KEY_ESC
-    ;je @exit
+    cmp ax, KEY_ESC
+    je @exit
 
-    ;cmp ax, KEY_L_ARROW
-    ;je @left_arrow
+    cmp ax, KEY_L_ARROW
+    je @left_arrow
 
-    ;cmp ax, KEY_R_ARROW
-    ;je @right_arrow
+    cmp ax, KEY_R_ARROW
+    je @right_arrow
 
+    @noKey:
     @return:
 
     ;jmp @fallLoop
 
-    mov al, byte ptr [cur_x]
-    inc al
-    mov byte ptr [cur_x], al
+    ;mov al, byte ptr [cur_y]
+    ;inc al
+    ;mov byte ptr [cur_y], al
 
     ; check for colision
     ; TODO: doesn't work figures with height less than 4
@@ -295,8 +288,8 @@ fallLoop proc
     ;jbe @fallLoop
 
     mov si, offset cur_figure
-    call checkCollision
-    jnc @fallLoop
+    ;jnc @fallLoop
+    jmp @fallLoop
 
     ret
 
@@ -359,7 +352,6 @@ printM macro x, y, char
     pop di
 endm
 
-
 checkCollision proc
     ; BL = cur_x, BH = cur_y
     mov bx, word ptr [cur_x]
@@ -384,8 +376,8 @@ checkCollision proc
         mov cx, FIGURE_WIDTH
         @@colC:
 
-        ;mov ah, 0h
-        ;int 16h
+        mov ah, 0h
+        int 16h
 
         mov byte ptr [X], bl
         mov byte ptr [Y], bh
@@ -446,12 +438,7 @@ main proc
 	mov ax,@data
 	mov ds,ax
 
-    ;call clear
     call fallLoop
-
-    ; wait for a keypress
-    mov ah, 00
-    int 16h
 
     ; exit
     mov ah, 4ch
