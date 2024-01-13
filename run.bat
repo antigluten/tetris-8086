@@ -1,6 +1,6 @@
 @echo off 
 
-set name=program
+set name=tetris
 
 cls
 
