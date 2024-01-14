@@ -23,28 +23,9 @@ BACKGROUND         equ         00fh
 .code
 
 @border: 
-    ; mov ax, @data
-    ; mov es, ax
-    ; lea di, RAM
-    ; mov di, 0
-
-    ; mov byte ptr es:[di], 02eh
-    ; mov byte ptr es:[di + 1], 00fh
-
-    ; ---------------
-
     mov bx, 0
 
     mov cx, 0
-
-;    mov byte ptr [RAM + 0], CHAR_DOT
-;    mov byte ptr [RAM + 1], BACKGROUND
-
-;    mov byte ptr [RAM + 10], CHAR_DOT
-;    mov byte ptr [RAM + 10 + 1], BACKGROUND
-
-;    mov byte ptr [RAM + FIELD_WIDTH * 2], CHAR_DOT
-;    mov byte ptr [RAM + FIELD_WIDTH * 2 + 1], BACKGROUND
 
     mov dx, FIELD_HEIGHT - 1
     @border_loop:
@@ -54,9 +35,6 @@ BACKGROUND         equ         00fh
         
         mov byte ptr [RAM + ax], CHAR_DOT
         mov byte ptr [RAM + ax + 1], BACKGROUND
-
-        ;mov byte ptr [RAM + ax + FIELD_WIDTH * 2 - 2], CHAR_DOT
-        ;mov byte ptr [RAM + ax + (FIELD_WIDTH * 2) - 1], BACKGROUND
 
         add cx, 12
 
@@ -127,7 +105,75 @@ BACKGROUND         equ         00fh
 
 ;     ret
 
+@mockk:
+    ;mov ax, RAM
+    lea di, RAM
+    mov ax, @data
+    mov es, ax
+
+    ;mov di, 0
+
+    mov bx, 0
+
+    mov dx, FIELD_HEIGHT
+    @@border_loop:
+        ;mov ah, bl
+        ;mov al, FIELD_WIDTH
+        ;mul ah
+
+        mov ah, bl
+        mov al, 10
+        mul ah
+
+        inc bl
+        
+        ;mov al, 0
+        add al, CHAR_DOT 
+        mov ah, BACKGROUND
+        stosw
+        ;mov word ptr [RAM], ax
+        ;mov word ptr ES:[DI], ax
+
+        ;mov al, CHAR_DOT
+        ;mov ah, BACKGROUND
+        ;mov word ptr [RAM + 2], ax
+        ;stosw
+        
+        ;mov cx, FIELD_WIDTH - 2
+        ;mov cx, FIELD_WIDTH - 2
+        ;rep stosw
+
+        ;mov al, CHAR_DOT
+        ;mov ah, BACKGROUND
+        ;stosw
+
+        add di, FIELD_WIDTH * 2 - 1 * 2
+
+        ;add di, 160 - 2
+        ;add di, FIELD_WIDTH * 2 - 2 * 2
+       ; add di, FIELD_WIDTH * 2
+
+;        add di, 160 - FIELD_WIDTH * 2
+        ;sub di, 2
+
+        ;inc bl
+        dec dx 
+    loopnz @@border_loop
+
+    ret
+
+    mov di, 0
+    add di, FIELD_WIDTH * (FIELD_HEIGHT) * 2
+
+    mov al, 04fh
+    mov ah, BACKGROUND
+    stosw
+
+    ret
+
 @copyToVRAM:
+    call @mockk
+
     mov ax, VRAM
     mov es, ax
     mov di, 0
@@ -139,11 +185,9 @@ BACKGROUND         equ         00fh
     mov dx, FIELD_HEIGHT
     @@row:
         mov cx, FIELD_WIDTH
-        rep movsw
-
-        ; rep movsw
+        rep movsw ; DS:[SI] -> ES:[DI]
         ; TODO: - by 2 because of stosw
-         add di, 160 - FIELD_WIDTH * 2 
+        add di, 160 - FIELD_WIDTH * 2 
          ;sub si, FIELD_WIDTH * 2
         dec dx
     jnz @@row
@@ -154,18 +198,14 @@ main proc
     mov ax, @data
     mov ds, ax
 
-    ; mov byte ptr @data:[RAM], 02eh
-    ; mov byte ptr @data:[RAM + 1], 00fh
+    call @copyToVRAM
 
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * 2) + 0], 02eh
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * 2) + 1], 00fh
+    mov ah, 4ch
+    int 21h
+    .exit
 
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * 7) + 0], 02eh
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * 7) + 1], 00fh
-
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * FIELD_HEIGHT * 2) - 2], 02eh
-    ; mov byte ptr @data:[RAM + (FIELD_WIDTH * FIELD_HEIGHT * 2) - 1], 00fh
-
+    ret
+    jmp @skipp
 
     mov ax, VRAM
     mov es, ax
@@ -180,7 +220,7 @@ main proc
         mov al, 03dh
         mov ah, BACKGROUND
         mov cx, FIELD_WIDTH
-        rep stosw
+        rep stosw ; AX -> ES:[DI]
 
         ; TODO: - by 2 because of stosw
 
@@ -190,7 +230,7 @@ main proc
 
     mov dx, FIELD_HEIGHT - 1
     mov di, 0
-    @@border_loop:
+    @@border_loop_:
         mov ah, bl
         mov al, FIELD_WIDTH
         mul ah
@@ -213,11 +253,13 @@ main proc
 
         inc bl
         dec dx 
-    loopnz @@border_loop
+    loopnz @@border_loop_
 
     ; call @mock
     ;call @border
     ;call @copyToVRAM
+
+    @skipp:
 
     mov ah, 4ch
     int 21h
