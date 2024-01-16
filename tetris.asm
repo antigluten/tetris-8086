@@ -36,15 +36,15 @@ square             db         4,4,0,0
     mov ax, @data
     mov es, ax
 
-    ;mov bx, 0
-    ;mov al, bh
-    ;mov ah, 160
-    ;mul ah
+    mov bx, 0
+    mov al, bh
+    mov ah, FIELD_WIDTH
+    mul ah
 
-    ;mov bh, 0
-    ;shl bx, 1
+    mov bh, 0
+    shl bx, 1
 
-    ;add bx, 2
+    add di, 2
 
     lea si, square
 
@@ -53,8 +53,6 @@ square             db         4,4,0,0
         mov cx, 4
         @col:
             lodsb
-            ;mov al, byte ptr ds:[si]
-            ;inc si
             or al, al
             jz @skip
 
@@ -71,7 +69,7 @@ square             db         4,4,0,0
         add di, 4
         loop @col
     @end:
-        ;add di, 160 - 2 * 4
+        add di, FIELD_WIDTH - 2 * 4 + 2 * 4 + 2 * 4
         dec bx
         jnz @row
 
