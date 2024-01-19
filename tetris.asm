@@ -4,6 +4,10 @@
 
 .data
 
+KEY_ESC            equ        011bh
+KEY_L_ARROW        equ        4b00h
+KEY_R_ARROW        equ        4d00h
+
 W_BYTE equ 1
 W_WORD equ 2
 
@@ -12,6 +16,8 @@ PLAYFIELD_WIDTH    equ        10
 PLAYFIELD_HEIGHT   equ        20
 BOTTOM_BORDER_HEIGHT equ      2
 HOR_BORDER_WIDTH     equ      2
+
+FIGURE_WIDTH       equ        4
 
 FIELD_HEIGHT       equ        PLAYFIELD_HEIGHT + BOTTOM_BORDER_HEIGHT
 FIELD_WIDTH        equ        (PLAYFIELD_WIDTH + HOR_BORDER_WIDTH) * 2
@@ -27,6 +33,19 @@ square             db         4,4,0,0
                    db         0,0,0,0
                    db         0,0,0,0
 
+l_figure           db         4,0,0,0
+                   db         4,0,0,0
+                   db         4,0,0,0
+                   db         4,0,0,0
+
+z_figure           db         4,0,0,0
+                   db         4,4,0,0
+                   db         0,4,0,0
+                   db         0,0,0,0
+
+x                  db         5
+y                  db         2
+
 ; LOGIC              byte       PLAYFIELD_HEIGHT * PLAYFIELD_WIDTH DUP(0)
 
 .code
@@ -36,20 +55,31 @@ square             db         4,4,0,0
     mov ax, @data
     mov es, ax
 
-    mov bx, 0
+    ; bl = x, bh = y
+    mov bx, word ptr [x]
+
+    ; y * FIELD_WIDTH
     mov al, bh
     mov ah, FIELD_WIDTH
     mul ah
 
+    ; clear y from bx
     mov bh, 0
-    shl bx, 1
+    shl bx, 1 ; * 2
+    shl bx, 1 ; * 2
 
-    add di, 2
+    ; x + y * FIELD_WIDTH
+    add bx, ax
 
-    lea si, square
+    ;add bx, HOR_BORDER_WIDTH    
+
+    add di, bx
+
+    lea si, z_figure
 
     mov bx, 4
     @row:
+        add di, HOR_BORDER_WIDTH
         mov cx, 4
         @col:
             lodsb
@@ -69,11 +99,9 @@ square             db         4,4,0,0
         add di, 4
         loop @col
     @end:
-        add di, FIELD_WIDTH - 2 * 4 + 2 * 4 + 2 * 4
+        add di, FIELD_WIDTH + FIGURE_WIDTH + HOR_BORDER_WIDTH
         dec bx
         jnz @row
-
-
 
 ret
         
@@ -107,9 +135,6 @@ ret
     ret
 
 @copyToVRAM:
-    call @border
-    call @draw_figure
-
     mov ax, VRAM
     mov es, ax
     mov di, 0
@@ -130,11 +155,57 @@ ret
 
     ret
 
+@fallLoop:
+    call @border
+    call @draw_figure
+    call @copyToVRAM
+
+    @keyLoop:
+
+    mov ah, 01
+    int 16h
+    jz @noKey
+
+    cmp ax, KEY_ESC
+    je @exit
+
+    cmp ax, KEY_L_ARROW
+    je @left_arrow
+
+    cmp ax, KEY_R_ARROW
+    je @right_arrow
+
+    @return: 
+    @noKey:
+
+    jmp @fallLoop
+
+    @left_arrow:
+        mov al, byte ptr [x]
+        or al, al
+        jz @keyLoop
+        dec al
+        mov byte ptr [x], al
+        jmp @return
+
+    @right_arrow:
+        mov al, byte ptr [x]
+        inc al
+        mov byte ptr [x], al
+        jmp @keyLoop
+
+    @exit:
+        mov ah, 4ch
+        int 21h
+
+    ret
+
 main proc
     mov ax, @data
     mov ds, ax
 
-    call @copyToVRAM
+    ;call @fallLoop
+    call @fallLoop
 
     mov ah, 4ch
     int 21h
