@@ -50,6 +50,66 @@ y                  db         2
 
 .code
 
+@clear_cur_figure:
+lea di, RAM
+    mov ax, @data
+    mov es, ax
+
+    ; bl = x, bh = y
+    mov bx, word ptr [x]
+
+    ; y * FIELD_WIDTH
+    mov al, bh
+    mov ah, FIELD_WIDTH
+    mul ah
+
+    ; clear y from bx
+    mov bh, 0
+    shl bx, 1 ; * 2
+    ; shl bx, 1 ; * 2
+
+    ; x + y * FIELD_WIDTH
+    add bx, ax
+
+    shl bx, 1
+
+    ;add bx, HOR_BORDER_WIDTH    
+
+    add di, bx
+
+    lea si, z_figure
+
+    mov bx, 4
+    @row_c:
+        add di, HOR_BORDER_WIDTH
+        mov cx, 4
+        @col_c:
+            lodsb
+            or al, al
+            jz @skip_c
+
+            ; mov ah, 0fh
+            mov ah, 09h
+            ; mov al, 5bh
+            mov al, 20h
+            stosw
+
+            ; mov al, 5dh
+            mov al, 20h
+            stosw
+
+            loop @col_c
+            jmp @end_c
+    @skip_c:
+        add di, 4
+        loop @col_c
+    @end_c:
+        add di, FIELD_WIDTH + FIGURE_WIDTH + HOR_BORDER_WIDTH
+        dec bx
+        jnz @row_c
+
+    ret
+
 @draw_figure:
     lea di, RAM
     mov ax, @data
@@ -66,10 +126,12 @@ y                  db         2
     ; clear y from bx
     mov bh, 0
     shl bx, 1 ; * 2
-    shl bx, 1 ; * 2
+    ; shl bx, 1 ; * 2
 
     ; x + y * FIELD_WIDTH
     add bx, ax
+
+    shl bx, 1
 
     ;add bx, HOR_BORDER_WIDTH    
 
@@ -155,16 +217,92 @@ ret
 
     ret
 
-@fallLoop:
+    ; i need to check whether there is a collission for the current figure
+    ; to do so i need to go over the 4x4 square where my piece is located
+    ; and overlay the figure position on the memory bitmap to get same entries
+    ; for square[i] in memory[coordinate] where value is not zero we get collision 
+    ; and return the value to the present state and doesn't do anything and create
+    ; new figure
+    ;
+    ; steps:
+    ; loop through non zero values of piece and compare its future location with 
+    ; memory, if all the pieces zero we can place the figure, if there is a non 
+    ; zero value we doesn't do anything and return everything in place as it was.
+@collision_check: 
+
+    ; [0][1][0][0]
+    ; [1][1][0][0]
+    ; [1][0][0][0]
+    ; [0][0][0][0]
+
+    ; calculate index to memory
+
+    lea di, RAM
+    mov ax, @data
+    mov es, ax
+
+    mov bx, word ptr [x]
+
+    mov al, bh
+    mov ah, FIELD_WIDTH
+    mul ah
+
+    mov bh, 0
+    shl bx, 1
+
+    add bx, ax
+    shl bx, 1
+
+    add di, bx
+
+    ; load current figure
+
+    lea si, z_figure
+
+    @cc_row:
+    mov bx, 4
+    add di, HOR_BORDER_WIDTH
+
+    mov cx, 4
+
+    @cc_col:
+    lodsb
+    or al, al
+    jz @cc_skip
+
+    mov dx, es:[di]
+    ;or dx, dx
+    cmp dh, BACKGROUND
+    jne @cc_collision
+
+    @cc_skip:
+    add di, 4
+
+    loop @cc_col
+
+    dec bx
+    jnz @cc_row 
+
+    clc
+    ret
+
+    @cc_collision:
+    stc 
+    ret
+
+@main_loop:
     call @border
     call @draw_figure
     call @copyToVRAM
 
-    @keyLoop:
+    call @clear_cur_figure
+    ; mov ah, 08h
+    ; int 21h
+    ; jz @return
 
-    mov ah, 01
-    int 16h
-    jz @noKey
+    ; wait for a keypress
+    ;mov ah, 0h
+    ;int 16h
 
     cmp ax, KEY_ESC
     je @exit
@@ -175,15 +313,28 @@ ret
     cmp ax, KEY_R_ARROW
     je @right_arrow
 
-    @return: 
-    @noKey:
+    @return:
 
-    jmp @fallLoop
+    call @clear_cur_figure
+
+    mov al, byte ptr [y]
+    inc al
+    mov byte ptr [y], al
+
+    call @collision_check
+    jc @exit
+
+    mov ah, 86h
+    mov cx, 0fh
+    mov dx, 4240h
+    int 15h
+
+    jmp @main_loop
 
     @left_arrow:
         mov al, byte ptr [x]
         or al, al
-        jz @keyLoop
+        jz @return
         dec al
         mov byte ptr [x], al
         jmp @return
@@ -192,23 +343,33 @@ ret
         mov al, byte ptr [x]
         inc al
         mov byte ptr [x], al
-        jmp @keyLoop
+        jmp @return
 
     @exit:
-        mov ah, 4ch
-        int 21h
+        call exit_program
 
     ret
+
+exit_program proc
+    mov ah, 4ch
+    int 21h
+exit_program endp
 
 main proc
     mov ax, @data
     mov ds, ax
 
-    ;call @fallLoop
-    call @fallLoop
+    ; set timer interval 18.2 per sec
+    ; mov ah, 86h
+    ; xor cx, cx
+    ; mov dx, 500 ; 500 mills
+    ; int 21h
 
-    mov ah, 4ch
-    int 21h
+    ;call @fallLoop
+    call @main_loop
+
+    call exit_program
+
     .exit
 main endp
 end main
