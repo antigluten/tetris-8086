@@ -1,6 +1,6 @@
 @echo off 
 
-set name=tetris
+set name=logic
 
 cls
 
