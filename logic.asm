@@ -11,9 +11,9 @@ FIELD_HEIGHT equ PLAYFIELD_HEIGHT + 1
 
 ;LOGIC byte (FIELD_WIDTH * FIELD_HEIGHT) DUP(0)
 
-z_figure           db         4,0,0,0
-                   db         4,4,0,0
-                   db         0,4,0,0
+z_figure           db         1,0,0,0
+                   db         1,1,0,0
+                   db         0,1,0,0
                    db         0,0,0,0
 
 l_figure           db         4,0,0,0
@@ -24,15 +24,15 @@ l_figure           db         4,0,0,0
 x db 0
 y db 0
 
-cur_figure dw offset z_figure
+cur_figure dw offset l_figure
 
 LOGIC byte 252 DUP (0)
 
 .code
 
 @border:
-    mov si, offset LOGIC
-    ;lea di, LOGIC
+    lea di, LOGIC
+
     mov ax, @data
     mov es, ax
 
@@ -119,7 +119,8 @@ LOGIC byte 252 DUP (0)
     ret
 
 @store_figure:
-    mov di, offset LOGIC
+    ;mov di, offset LOGIC
+    lea di, LOGIC
     ; bl = x, bh = y
     mov bx, word ptr [x]
 
@@ -130,38 +131,39 @@ LOGIC byte 252 DUP (0)
 
     ; clear y from bx
     mov bh, 0
-    add bx, 1 ; left border
+    ; add bx, 1 ; left border
     ; x + y * FIELD_WIDTH
     add bx, ax
 
-    add di, bx
+    ;add di, bx
 
-    mov si, word ptr [cur_figure]
+    ;mov si, word ptr [cur_figure]
+    ;mov si, word ptr [l_figure]
+    ;lea si, cur_figure
+    lea si, z_figure
 
     mov bx, 4
     @row:
+        add di, 1 ; add left border
         mov cx, 4
+
         @col:
+        lodsb
+        or al, al
+        jz @skip
 
-            mov al, 99h
-            stosb
-            jmp @end
-    
-            lodsb
-            or al, al
-            jz @skip
+        mov al, 0FFh
+        stosb
 
-            mov al, 0Fh
-            stosb
-
-            loop @col
-            jmp @end
+        loop @col
+        jmp @end
     @skip:
         add di, 1
         loop @col
     @end:
         add di, FIELD_WIDTH - 4 - 1
         dec bx
+
         jnz @row
 
 ret
@@ -175,7 +177,7 @@ main proc
 
     call @store_figure
 
-    mov si, offset LOGIC
+    lea si, LOGIC
 
     mov ah, 4ch
     int 21h
