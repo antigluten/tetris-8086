@@ -60,9 +60,9 @@ LOGIC byte 252 DUP (0)
 
 @collision_check: 
 
-    ; [0][1][0][0]
-    ; [1][1][0][0]
     ; [1][0][0][0]
+    ; [1][1][0][0]
+    ; [0][1][0][0]
     ; [0][0][0][0]
 
     ; calculate index to memory
@@ -78,35 +78,46 @@ LOGIC byte 252 DUP (0)
     mul ah
 
     mov bh, 0
-    shl bx, 1
 
     add bx, ax
-    shl bx, 1
 
     add di, bx
 
     ; load current figure
-    ;lea si, z_figure
-    mov si, word ptr [cur_figure]
+    lea si, z_figure
+    ;mov si, word ptr [cur_figure]
+    
+    ; DI -> LOGIC
+    ; SI -> FIGURE
+    ; ES -> @DATA
 
-    @cc_row:
     mov bx, 4
+    @cc_row:
+    add di, 1
 
     mov cx, 4
-
     @cc_col:
+
+    ; check whether we have non zero block
     lodsb
     or al, al
     jz @cc_skip
 
+    ;mov dx, es:[di]
     mov dx, es:[di]
-    or dx, dx
+    ;mov dl, 0
+    or dl, dl
     jnz @cc_collision
 
     @cc_skip:
-    add di, 4
+    add di, 1
 
     loop @cc_col
+
+    add di, FIELD_WIDTH - 4 - 2
+
+    ; -- debug --
+    ;mov byte ptr es:[di], 08h
 
     dec bx
     jnz @cc_row 
@@ -115,6 +126,7 @@ LOGIC byte 252 DUP (0)
     ret
 
     @cc_collision:
+    ;mov byte ptr ds:[di], 8
     stc 
     ret
 
@@ -135,7 +147,7 @@ LOGIC byte 252 DUP (0)
     ; x + y * FIELD_WIDTH
     add bx, ax
 
-    ;add di, bx
+    add di, bx
 
     ;mov si, word ptr [cur_figure]
     ;mov si, word ptr [l_figure]
@@ -168,16 +180,104 @@ LOGIC byte 252 DUP (0)
 
 ret
 
+@render:
+    lea si, LOGIC
+
+    mov ax, 0b800h
+    mov es, ax
+    mov di, 0
+
+    mov dx, 21
+    @r_row:
+
+    add di, 16 ; offset
+
+    mov cx, 12
+
+    @r_col:
+
+    mov al, byte ptr ds:[si]
+    inc si
+    ;lodsb
+    or al, al
+    jz @r_empty
+
+    cmp al, 9
+    je @r_border
+
+    cmp al, 8
+    je @r_indicator
+
+    mov al, 24h
+    mov ah, 00fh
+
+    @r_ret:
+
+    mov word ptr es:[di], ax
+    add di, 2
+    mov word ptr es:[di], ax
+    add di, 2
+    ;stosw
+    ;stosw
+
+    ;sub si, 2
+
+    loopnz @r_col
+
+    add di, 160 - FIELD_WIDTH * 4
+    sub di, 16 ; offset
+
+    dec dx
+    jnz @r_row
+
+    ret
+
+@r_border:
+    mov al, 023h ; TODO: replace with dot
+    mov ah, 00fh
+    jmp @r_ret
+
+@r_empty:
+    mov al, 02eh
+    mov ah, 00fh
+    jmp @r_ret
+
+@r_indicator:
+    mov al, 025h
+    mov ah, 00fh
+    jmp @r_ret
+
+clear proc
+    mov ax, 03h
+    int 10h
+    ret
+clear endp
 
 main proc
     mov ax, @data
     mov ds, ax
 
+    call clear
+
     call @border
+    ;call @store_figure
+
+    call @render
+
+    call @collision_check
+    jc @indicate
 
     call @store_figure
+    call @render
 
-    lea si, LOGIC
+    @indicate:
+    mov ax, 0b800h
+    mov es, ax
+    mov di, 0
+
+    mov ah, 00fh
+    mov al, 025h
+    mov word ptr es:[di + 160 - 2], ax
 
     mov ah, 4ch
     int 21h
@@ -196,7 +296,9 @@ main proc
     @return:
     
     call @store_figure
-    mov si, offset LOGIC
+
+    ; -- DEBUG --
+    lea si, LOGIC
 
     mov ah, 4ch
     int 21h
