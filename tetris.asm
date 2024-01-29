@@ -321,8 +321,8 @@ ret
     inc al
     mov byte ptr [y], al
 
-    call @collision_check
-    jc @exit
+    ;call @collision_check
+    ;jc @exit
 
     mov ah, 86h
     mov cx, 0fh
