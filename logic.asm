@@ -32,6 +32,8 @@ KEY_ESC            equ        011bh
 KEY_L_ARROW        equ        4b00h
 KEY_R_ARROW        equ        4d00h
 
+KEY_L        equ        4bh
+KEY_R        equ        4dh
 .code
 
 @border:
@@ -437,19 +439,17 @@ main proc
         call @collision_check
         jc @return
 
-        @main_loop_return:
-
         jmp @handle_keyboard
-
-        mov ah, 0h
-        int 16h
-
 
         @no_key_pressed:
         ; timer
         mov ah, 86h
-        mov cx, 0fh
-        mov dx, 4240h
+        ;mov cx, 0fh
+        ;mov dx, 4240h
+
+        mov cx, 03h
+        mov dx, 0d090h
+        
         int 15h
 
         mov al, byte ptr [y]
@@ -482,21 +482,20 @@ main proc
 
     @handle_keyboard:
         mov ah, 01h
-        int 16h
+        int 16h 
         jz @no_key_pressed
-        ;jz @main_loop_return
-        ;jmp @no_key_pressed
-
-        cmp ax, KEY_ESC
+        mov ah, 00h
+        int 16h
+        cmp al, 27
         je @exit
 
-        cmp ax, KEY_L_ARROW
+        cmp ah, KEY_L
         je @handle_move_left
 
-        cmp ax, KEY_R_ARROW
+        cmp ah, KEY_R
         je @handle_move_right
 
-        jmp @main_loop_return
+        jmp @no_key_pressed
 
     @handle_move_left:
         mov al, byte ptr [x]
@@ -511,7 +510,7 @@ main proc
         mov byte ptr [x], al
 
         @ml_skip:
-        jmp @main_loop_return
+        jmp @no_key_pressed
 
     @handle_move_right:
         mov al, byte ptr [x]
@@ -526,7 +525,7 @@ main proc
         mov byte ptr [x], al
 
         @mr_skip:
-        jmp @main_loop_return
+        jmp @no_key_pressed
 
     @spawn_new_figure:
     mov byte ptr [y], 0
