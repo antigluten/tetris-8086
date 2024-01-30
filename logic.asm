@@ -21,6 +21,13 @@ l_figure           db         4,0,0,0
                    db         4,0,0,0
                    db         4,0,0,0
 
+l_figure1          db         0,0,0,0
+                   db         0,0,0,0
+                   db         4,4,4,4
+                   db         0,0,0,0
+
+rot_pos            dw         0
+
 x db 4
 y db 0
 
@@ -34,7 +41,22 @@ KEY_R_ARROW        equ        4d00h
 
 KEY_L        equ        4bh
 KEY_R        equ        4dh
+KEY_SPACE    equ        39h
 .code
+
+MIN MACRO a, b
+    cmp a, b
+    jl L1
+    mov a, b
+L1:
+ENDM
+
+MAX MACRO a, b
+    cmp a, b
+    jg L2
+    mov a, b
+L2:
+ENDM
 
 @border:
     lea di, LOGIC
@@ -98,7 +120,8 @@ KEY_R        equ        4dh
     add di, bx
 
     ; load current figure
-    lea si, z_figure
+    ;lea si, z_figure
+    mov si, cur_figure
     ;mov si, word ptr [cur_figure]
     
     ; DI -> LOGIC
@@ -165,7 +188,8 @@ KEY_R        equ        4dh
     ;mov si, word ptr [cur_figure]
     ;mov si, word ptr [l_figure]
     ;lea si, cur_figure
-    lea si, z_figure
+    ;lea si, z_figure
+    mov si, cur_figure
 
     mov bx, 4
     @row:
@@ -220,7 +244,8 @@ ret
     ;mov si, word ptr [cur_figure]
     ;mov si, word ptr [l_figure]
     ;lea si, cur_figure
-    lea si, z_figure
+    ;lea si, z_figure
+    mov si, cur_figure
 
     mov bx, 4
     @cf_row:
@@ -283,7 +308,8 @@ ret
     ;mov si, word ptr [cur_figure]
     ;mov si, word ptr [l_figure]
     ;lea si, cur_figure
-    lea si, z_figure
+    ;lea si, z_figure
+    mov si, cur_figure
 
     mov bx, 4
     @rf_row:
@@ -297,11 +323,15 @@ ret
         or al, al
         jz @rf_skip
 
-        mov al, 24h
+        mov al, 5bh
         mov ah, 00fh
 
         mov word ptr es:[di], ax
         add di, 2
+
+        mov al, 5dh
+        mov ah, 00fh
+
         mov word ptr es:[di], ax
         add di, 2
 
@@ -347,8 +377,19 @@ ret
     cmp al, 0f8h
     je @r_indicator
 
-    mov al, 24h
+    mov al, 5bh
     mov ah, 00fh
+
+    mov word ptr es:[di], ax
+    add di, 2
+
+    mov al, 5dh
+    mov ah, 00fh
+
+    mov word ptr es:[di], ax
+    add di, 2
+
+    jmp @render_skip
 
     @r_ret:
 
@@ -360,6 +401,7 @@ ret
     ;stosw
 
     ;sub si, 2
+    @render_skip:
 
     loopnz @r_col
 
@@ -377,9 +419,19 @@ ret
     jmp @r_ret
 
 @r_empty:
+    mov al, 020h
+    mov ah, 00fh
+
+    mov word ptr es:[di], ax
+    add di, 2
+
     mov al, 02eh
     mov ah, 00fh
-    jmp @r_ret
+
+    mov word ptr es:[di], ax
+    add di, 2
+
+    jmp @render_skip
 
 @r_indicator:
     mov al, 025h
@@ -447,8 +499,9 @@ main proc
         ;mov cx, 0fh
         ;mov dx, 4240h
 
+        ; 030d90h -> 0.25s
         mov cx, 03h
-        mov dx, 0d090h
+        mov dx, 0d090h 
         
         int 15h
 
@@ -495,6 +548,9 @@ main proc
         cmp ah, KEY_R
         je @handle_move_right
 
+        cmp ah, KEY_SPACE
+        je @handle_space
+
         jmp @no_key_pressed
 
     @handle_move_left:
@@ -526,6 +582,57 @@ main proc
 
         @mr_skip:
         jmp @no_key_pressed
+
+    @handle_space:
+        ; calculate offset
+
+        mov ax, word ptr [rot_pos]
+        inc ax
+        cmp ax, 2
+        jl @switch_figure
+        xor ax, ax
+
+    @switch_figure:
+        mov word ptr [rot_pos], bx
+        mov ax, 8
+
+        imul bx
+
+        lea bx, cur_figure
+        add bx, ax
+
+        mov cur_figure, bx
+        ;mov ax, word ptr [rot_pos]
+        ;shl ax, 1
+
+        ;mov bx, cur_figure
+        ;add bx, ax
+        ;mov cur_figure, bx
+        
+        jmp @no_key_pressed
+
+        ; -- think about it
+
+        ;mov al, byte ptr [rot_pos]
+        ;mov ah, 0
+        ;inc ax
+
+        ;mov bx, 1
+
+        ;min ax, bx
+
+        ;mov byte ptr [rot_pos], al
+        
+        ;mov al, 16
+        ;mov ah, byte ptr [rot_pos]
+        ;mul ah
+        
+        ;lea bx, cur_figure
+        ;add bx, ax
+
+        ;mov cur_figure, bx
+        
+        ;jmp @no_key_pressed
 
     @spawn_new_figure:
     mov byte ptr [y], 0
